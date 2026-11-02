@@ -5,7 +5,7 @@ RAG over the Wolf 359 audio drama scripts. Two modes:
 - **Summarizer** — answers questions with cited script excerpts.
 - **Group Chat** — Minkowski, Eiffel, and Hilbert reply in character.
 
-Stack: FastAPI + Qdrant (vectors) + Jina (embeddings/rerank) + Cloudflare Workers AI (generation).
+Stack: FastAPI + Qdrant (vectors, stored locally on this machine) + Jina (embeddings/rerank, hosted API) + Cloudflare Workers AI (generation, hosted API).
 
 ## Project layout
 
@@ -23,7 +23,7 @@ core/personas.py        Group-chat character prompts
 features/               Summarizer and group-chat logic
 eval_offline/           Live retrieval quality evaluation
 static/                 Frontend
-tests/                  Offline pytest suite (external services mocked)
+
 ```
 
 ## Setup
@@ -52,11 +52,54 @@ locally with Docker if needed:
 docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
 
+## Embeddings: stored locally, computed via Jina's API
+
+The vectors that back retrieval live **on this machine**, not in a managed
+cloud vector database. They sit inside the local Qdrant instance started by
+the `docker run` command above, which persists to a Docker volume on disk.
+Once ingestion has finished, searching the collection (`/summarize`,
+`/groupchat`) never leaves your machine for the vector lookup itself — the
+only outbound calls at query time are to Jina (query embedding + rerank) and
+Cloudflare Workers AI (generation).
+
+The embedding *values* themselves are not computed locally — there's no
+local embedding model running — they're produced by calling Jina's hosted
+embeddings endpoint once per chunk, at ingestion time, and then written to
+the local Qdrant store. The chunks are the show's dialogue/script lines,
+broken out one character line (or stage direction) per JSONL record.
+
+### How the embeddings were made
+
+1. **Source data**: the Wolf 359 script text was split into one JSONL record
+   per line of dialogue/stage direction, each tagged with `episode`,
+   `title`, and `character name` (see the payload shape below).
+2. **Embedding call**: `ingest.py` batches those records' `text` fields and
+   POSTs each batch to Jina's `/v1/embeddings` endpoint
+   (`core/embeddings.py`), using model `jina-embeddings-v3`
+   (`EMBED_MODEL`), task `retrieval.passage` (the asymmetric, passage-side
+   embedding — queries use `retrieval.query` instead so the two stay
+   compatible), and 1024-dimension output (`EMBED_DIM`). This is the one
+   step that needs network access and a valid `JINA_API_KEY`.
+3. **Local storage**: the returned vectors are packaged into Qdrant
+   `PointStruct`s — vector + full payload (`text`, `chunk_index`,
+   `chunk_ID`, `episode`, `title`, `character name`) — and upserted into
+   the local Qdrant collection named by `COLLECTION_NAME`
+   (default `wolf359_scripts`), created with a 1024-dim cosine distance
+   config if it doesn't already exist.
+4. **Idempotency**: `chunk_ID` is a deterministic UUID5 derived from
+   `(episode, title, chunk_index, text)` when not supplied, so re-running
+   ingestion against the same source JSONL re-upserts the same point IDs
+   instead of duplicating them.
+
+Re-running ingestion (see below) is the only way to regenerate or update
+the local embeddings — nothing recomputes them automatically, and deleting
+the Qdrant Docker volume deletes them for good.
+
 ## Ingestion
 
 Skip this section if your `wolf359_scripts` collection is already populated —
-the app only reads from Qdrant. Ingestion exists for rebuilding the collection
-or loading a new dataset.
+the app only reads from Qdrant. Ingestion exists for rebuilding the local
+collection or loading a new dataset.
 
 Input is JSONL, one chunk per line. This is the same payload shape used by
 the existing collection:
@@ -94,15 +137,6 @@ Open http://localhost:8000. Routes: `/summarize`, `/groupchat`,
 
 Startup validates required environment variables and checks that the Qdrant
 collection exists and matches `EMBED_DIM`.
-
-## Tests
-
-```powershell
-python -m pytest
-```
-
-Tests are offline: Jina, Cloudflare, and Qdrant are mocked, so no credentials
-or running services are needed.
 
 ## Retrieval tuning
 
