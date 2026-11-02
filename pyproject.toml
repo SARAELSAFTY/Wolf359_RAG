@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wolf359-rag"
+version = "0.2.0"
+description = "RAG over Wolf 359 scripts — summarizer + 3-character group chat (Qdrant + Jina + Cloudflare Workers AI)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.6",
+    "requests>=2.31",
+    "qdrant-client>=1.19",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[tool.setuptools]
+py-modules = ["main", "config", "schemas", "ingest"]
+packages = ["core", "features", "eval_offline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

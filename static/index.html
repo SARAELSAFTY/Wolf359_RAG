@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wolf 359 RAG</title>
+  <link rel="stylesheet" href="/static/style.css?v=4">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Wolf 359 RAG</h1>
+      <div class="header-controls">
+        <div class="mode-toggle">
+          <button id="mode-summarizer" class="mode-btn active" data-mode="summarizer">Summarizer</button>
+          <button id="mode-groupchat" class="mode-btn" data-mode="groupchat">Group Chat</button>
+        </div>
+        <span id="token-usage" class="token-usage" aria-live="polite"></span>
+        <button id="clear-btn" title="Clear this conversation">New session</button>
+      </div>
+    </header>
+
+    <main id="messages-summarizer" class="messages" aria-live="polite"></main>
+    <main id="messages-groupchat" class="messages" aria-live="polite" hidden></main>
+
+    <form id="chat-form">
+      <input
+        id="query-input"
+        type="text"
+        placeholder="Ask something about Wolf 359..."
+        autocomplete="off"
+        required
+      >
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </div>
+
+  <script src="/static/app.js?v=4"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Secrets — never commit the real environment file
+.env
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Local script data
+data/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
